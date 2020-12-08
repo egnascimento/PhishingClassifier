@@ -8,6 +8,7 @@ from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 from sklearn.impute import SimpleImputer
 from sklearn.decomposition import PCA
+from sklearn.model_selection import cross_val_predict
 import os
 import time
 
@@ -77,21 +78,16 @@ def remove_outliers(X,y):
     xdf_o = zdf[zdf['class']==1].copy()
     xdf_m = zdf[zdf['class']==-1].copy()
     
-    z = np.abs(stats.zscore(xdf_o))
+    z = np.abs(stats.zscore(xdf_o.drop('class', axis=1)))
     z = np.nan_to_num(z)
     print('Amostras =1 mantidas: %d de %d' % (np.sum((z < 3).all(axis=1)), xdf_o.shape[0]))
     xdf_o = xdf_o[(z < 3).all(axis=1)]
     
-    z = np.abs(stats.zscore(xdf_m))
+    z = np.abs(stats.zscore(xdf_m.drop('class', axis=1)))
     z = np.nan_to_num(z)
     print('Amostras =-1 mantidas: %d de %d' % (np.sum((z < 3).all(axis=1)), xdf_m.shape[0]))
     xdf_m = xdf_m[(z < 3).all(axis=1)]
-    #-------------------------------
-    #xdf_o = resample(xdf_o, 
-    #                replace=True,     # sample with replacement
-    #                n_samples=xdf_m.shape[0],    # to match majority class
-    #                random_state=123) # reproducible results
-
+    
     totaldf = pd.concat([xdf_o,xdf_m])
     y = totaldf['class'].values
     X = totaldf.drop('class', axis=1).values
@@ -319,49 +315,23 @@ def evaluate_model(model, X_train, y_train, X_test, y_test):
 
     print_rocauc_curve(y_test, y_pred)
 
-def print_submission_csv(model, X, y, K):
-    clf= model.fit(X, y)
-    y_pred = clf.predict(K)
-    y_pred_submission = clf.predict_proba(K)[:,1]
-    result = np.zeros((K.shape[0],2))
-    for i in range(K.shape[0]):
-        result[i][0] = test_dataset.iloc[:,:].values.T[0][i]
-        result[i][1] = y_pred_submission[i]
-    resultdf = pd.DataFrame(data=result, columns=["Id", "Predicted"])
-    resultdf['Id'] = resultdf['Id'].astype(int)
-    resultdf['Predicted'] = resultdf['Predicted'].round(decimals=5)
-    resultdf.to_csv('submission.csv', index=False, float_format='%.5f')
+    return y_pred
 
+def cross_evaluate_model(model, X_train, y_train, X_test, y_test):
+    clf = model.fit(X_train, y_train)
+    y_pred = cross_val_predict(clf,X_train, y_train)
+    print("Acurácia Treino:",metrics.accuracy_score(y_train, y_pred))
+    y_pred = cross_val_predict(clf,X_test, y_test)
+    print("Acurácia Teste:",metrics.accuracy_score(y_test, y_pred))
+    y_proba = cross_val_predict(clf,X_test, y_test, method='predict_proba')
+    print("AUC score:", metrics.roc_auc_score(y_test, y_proba[:,1]))
+    print("F1 score:", metrics.f1_score(y_test, y_pred))
+    print(confusion_matrix(y_test, y_pred))
 
-def remove_duplicates(X_train, y_train):
+    print_rocauc_curve(y_test, y_pred)
 
-    print(X_train.shape, y_train.shape)
-    xdf = pd.DataFrame(data=X_train)
-    ydf = pd.DataFrame(data=y_train, columns=['classe'])
-    zdf = pd.concat([xdf,ydf], axis=1)
+    return y_pred
 
-    display(zdf.head(5))
-
-    df_duplicates = zdf[ zdf.iloc[:,:-1].duplicated()] 
-        
-    # se tiver valores redundantes ou inconsistentes, imprima 
-    if len(df_duplicates)>0:
-        print('Nosso dataset tem %d duplicados.' % len(df_duplicates))
-        display(df_duplicates)
-    else:
-        print('Não foram encontradas amostras duplicadas')
-        
-    zdf = zdf.drop_duplicates(subset=[0,1,2,3,4,5], keep = 'first', inplace = False)
-
-    X_train = zdf.iloc[:,:-1].values
-    y_train = zdf.iloc[:,-1].values
-
-    print(X_train)
-    print(y_train)
-
-    print(X_train.shape, y_train.shape)
-
-    return X_train, y_train
 
 def printPCA(X, y):
     pca = PCA(2)  # project from 64 to 2 dimensions
@@ -389,3 +359,68 @@ def beep(times, freq):
     for i in range(times):
         os.system('play -nq -t alsa synth {} sine {}'.format(duration, freq))
         time.sleep(0.5)
+
+
+
+def plot_decision_boundaries(X, y, model_class, **model_params):
+    """
+    Function to plot the decision boundaries of a classification model.
+    This uses just the first two columns of the data for fitting 
+    the model as we need to find the predicted value for every point in 
+    scatter plot.
+    Arguments:
+            X: Feature data as a NumPy-type array.
+            y: Label data as a NumPy-type array.
+            model_class: A Scikit-learn ML estimator class 
+            e.g. GaussianNB (imported from sklearn.naive_bayes) or
+            LogisticRegression (imported from sklearn.linear_model)
+            **model_params: Model parameters to be passed on to the ML estimator
+    
+    Typical code example:
+            plt.figure()
+            plt.title("KNN decision boundary with neighbros: 5",fontsize=16)
+            plot_decision_boundaries(X_train,y_train,KNeighborsClassifier,n_neighbors=5)
+            plt.show()
+    """
+    try:
+        X = np.array(X)
+        y = np.array(y).flatten()
+    except:
+        print("Coercing input data to NumPy arrays failed")
+    # Reduces to the first two columns of data
+    reduced_data = X[:, :2]
+    # Instantiate the model object
+    model = model_class(**model_params)
+    # Fits the model with the reduced data
+    model.fit(reduced_data, y)
+
+    # Step size of the mesh. Decrease to increase the quality of the VQ.
+    h = .02     # point in the mesh [x_min, m_max]x[y_min, y_max].    
+
+    # Plot the decision boundary. For that, we will assign a color to each
+    x_min, x_max = reduced_data[:, 0].min() - 1, reduced_data[:, 0].max() + 1
+    y_min, y_max = reduced_data[:, 1].min() - 1, reduced_data[:, 1].max() + 1
+    # Meshgrid creation
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
+
+    # Obtain labels for each point in mesh using the model.
+    Z = model.predict(np.c_[xx.ravel(), yy.ravel()])    
+
+    x_min, x_max = X[:, 0].min() - 1, X[:, 0].max() + 1
+    y_min, y_max = X[:, 1].min() - 1, X[:, 1].max() + 1
+    xx, yy = np.meshgrid(np.arange(x_min, x_max, 0.1),
+                         np.arange(y_min, y_max, 0.1))
+
+    # Predictions to obtain the classification results
+    Z = model.predict(np.c_[xx.ravel(), yy.ravel()]).reshape(xx.shape)
+
+    # Plotting
+    plt.contourf(xx, yy, Z, alpha=0.4)
+    plt.scatter(X[:, 0], X[:, 1], c=y, alpha=0.8)
+    plt.xlabel("Feature-1",fontsize=15)
+    plt.ylabel("Feature-2",fontsize=15)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    return plt
+
+
