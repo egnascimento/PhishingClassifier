@@ -57,16 +57,16 @@ def evaluate_model(model, X_train, y_train, X_test, y_test):
     end = time.time()
     train_time = end-start
     y_pred = clf.predict(X_train)
-    results['bal_accuracy_train'] = metrics.balanced_accuracy_score(y_train, y_pred)
+    results['bal_acc_train'] = metrics.balanced_accuracy_score(y_train, y_pred)
     start = time.time()
     y_pred = clf.predict(X_test)
     end = time.time()
     predict_time = end-start
-    results['bal_accuracy_test'] = metrics.balanced_accuracy_score(y_test, y_pred)
+    results['bal_acc_test'] = metrics.balanced_accuracy_score(y_test, y_pred)
     results['f1_weighted'] = metrics.f1_score(y_test, y_pred, average='weighted')
     results['f1_micro'] = metrics.f1_score(y_test, y_pred, average='micro')
-    results['precision_micro'] = metrics.precision_score(y_test, y_pred, average='micro')
-    results['recall_micro'] = metrics.recall_score(y_test, y_pred, average='micro')
+    results['precision'] = metrics.precision_score(y_test, y_pred)
+    results['recall'] = metrics.recall_score(y_test, y_pred)
     y_proba = clf.predict_proba(X_test)
     results['mcc'] = metrics.matthews_corrcoef(y_test, y_pred)
     results['roc_auc'] = metrics.roc_auc_score(y_test, y_proba[:,1], average='micro')
@@ -74,8 +74,6 @@ def evaluate_model(model, X_train, y_train, X_test, y_test):
     results['TN'] = confusion_matrix(y_test, y_pred)[1][1]
     results['train_time'] = train_time
     results['predict_time'] = predict_time
-
-    #print_rocauc_curve(y_test, y_pred)
 
     return results
 
