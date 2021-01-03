@@ -57,7 +57,7 @@ def remove_outliers(X,y):
     return X,y
 
 
-def oversample(X,y):
+def oversample(X,y, times=None):
     """
     Aplica a estratégia de oversample na base fornecida
 
@@ -81,17 +81,32 @@ def oversample(X,y):
     xdf_o = zdf[zdf['class']==1].copy()
     xdf_m = zdf[zdf['class']==-1].copy()
     
+
+
     if xdf_m.shape[0] > xdf_o.shape[0]:
-        xdf_o = resample(xdf_o, 
-                        replace=True,     # sample with replacement
-                        n_samples=xdf_m.shape[0],    # to match majority class
-                        random_state=123) # reproducible results
+        if times is None:
+            xdf_o = resample(xdf_o, 
+                            replace=True,     # sample with replacement
+                            n_samples=xdf_m.shape[0],    # to match majority class
+                            random_state=123) # reproducible results
+        else:
+            xdf_o = resample(xdf_o, 
+                            replace=True,     # sample with replacement
+                            n_samples=xdf_o.shape[0] * times,    # to match majority class
+                            random_state=123) # reproducible results
     
     if xdf_m.shape[0] < xdf_o.shape[0]:
-        xdf_m = resample(xdf_m, 
-                        replace=True,     # sample with replacement
-                        n_samples=xdf_o.shape[0],    # to match majority class
-                        random_state=123) # reproducible results
+        if times is None:
+            xdf_m = resample(xdf_m, 
+                            replace=True,     # sample with replacement
+                            n_samples=xdf_o.shape[0],    # to match majority class
+                            random_state=123) # reproducible results
+        else:
+            xdf_m = resample(xdf_m, 
+                            replace=True,     # sample with replacement
+                            n_samples=xdf_m.shape[0] * times,    # to match majority class
+                            random_state=123) # reproducible results
+        
 
     totaldf = pd.concat([xdf_o,xdf_m])
     y = totaldf['class'].to_numpy() 
@@ -184,8 +199,9 @@ def add_samples(model, X, y, samples):
     clf = model.fit(X, y)
     y_semi = clf.predict(samples)
     y_probas = clf.predict_proba(samples)
+    print(y_probas)
     # O nível de confiança está aqui fixo para >= 80% para ambas as classes
-    proba_mask = (y_probas[:,0] < 0.2) | (y_probas[:,0] > 0.8)
+    proba_mask = (y_probas[:,0] < 0.001) | (y_probas[:,0] > 0.999)
     y_semi = y_semi[proba_mask]
     X_semi = samples[proba_mask]
     

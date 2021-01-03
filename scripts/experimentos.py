@@ -13,6 +13,7 @@
 from sklearn import svm
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
 
 from sklearn.model_selection import StratifiedKFold
 from sklearn.model_selection import GridSearchCV
@@ -141,7 +142,7 @@ def find_best_knn(X, y, scores):
     """
     print('Buscando os melhores parâmetros para o KNN:')
 
-    cv = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
+    cv = StratifiedKFold(n_splits=5, random_state=1, shuffle=True)
 
     tuned_parameters = { 'n_neighbors': range(1,30),
                          'leaf_size':range(1,9,2),
@@ -177,7 +178,7 @@ def find_best_svm(X, y, scores):
 
     """
 
-    cv = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
+    cv = StratifiedKFold(n_splits=5, random_state=1, shuffle=True)
 
     tuned_parameters = [{'kernel': ['rbf'], 'gamma': ['scale', 1e-3, 1e-4], 'C': [1, 10, 100, 200, 400, 600, 1000]},
                         {'kernel': ['linear'], 'C': [1, 10, 100, 200, 400, 600, 1000]},
@@ -212,7 +213,7 @@ def find_best_rfc(X, y, scores):
     """
     print('Buscando os melhores parâmetros para as florestas aleatórias:')
 
-    cv = StratifiedKFold(n_splits=10, random_state=1, shuffle=True)
+    cv = StratifiedKFold(n_splits=5, random_state=1, shuffle=True)
 
     tuned_parameters = { 'n_estimators': [100, 200, 500],
                          'max_features': ['auto', 'sqrt', 'log2'],
@@ -227,3 +228,41 @@ def find_best_rfc(X, y, scores):
 
         print('Os melhores parâmetros encontrados para a pontuação %s foram:' % score)
         print(clf.best_params_)
+
+def find_best_mlp(X, y, scores):
+    """
+    Através da busca em grid encontra os melhores hiperparâmetros a serem utilizados
+    para o classificador utilizando redes neurais.
+
+    Parâmetros
+    ----------------
+    X : array
+    Array contendo os atributos da base de treino.
+
+    y : array
+    Array contendo as classes da base de treino.
+
+    scores : array
+    Pontuações a serem consideradas para definição dos melhores hiperparâmetros.
+
+    """
+    print('Buscando os melhores parâmetros para Multi Layer Perceptron (Neural Networks):')
+
+    cv = StratifiedKFold(n_splits=5, random_state=1, shuffle=True)
+
+    tuned_parameters = {'solver': ['sgd', 'adam'],
+                        'learning_rate': ["constant", "invscaling", "adaptive"],
+                        'activation': ["logistic", "relu", "Tanh"],
+                        'alpha': 10.0 ** -np.arange(1, 10),
+                        'hidden_layer_sizes': [(100,), (200,), (400,), (600,), (800,)]}
+
+    for score in scores:
+        clf = GridSearchCV(
+            MLPClassifier(), tuned_parameters, scoring=score, cv=cv, verbose=10
+        )
+        clf.fit(X, y)
+
+        print('Os melhores parâmetros encontrados para a pontuação %s foram:' % score)
+        print(clf.best_params_)
+
+    return clf
