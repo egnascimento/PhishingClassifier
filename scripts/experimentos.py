@@ -23,6 +23,7 @@ from sklearn.model_selection import cross_val_predict
 from sklearn import metrics
 
 import time
+import numpy as np
 
 
 def evaluate_model(model, X_train, y_train, X_test, y_test):
@@ -61,6 +62,7 @@ def evaluate_model(model, X_train, y_train, X_test, y_test):
     results['bal_acc_train'] = metrics.balanced_accuracy_score(y_train, y_pred)
     start = time.time()
     y_pred = clf.predict(X_test)
+    np.savetxt("y_pred.csv", y_pred, delimiter=",")
     end = time.time()
     predict_time = end-start
     results['bal_acc_test'] = metrics.balanced_accuracy_score(y_test, y_pred)
@@ -69,12 +71,68 @@ def evaluate_model(model, X_train, y_train, X_test, y_test):
     results['precision'] = metrics.precision_score(y_test, y_pred)
     results['recall'] = metrics.recall_score(y_test, y_pred)
     y_proba = clf.predict_proba(X_test)
+    np.savetxt("y_proba.csv", y_proba, delimiter=",")
+    np.savetxt("y_test.csv", y_test, delimiter=",")
     results['mcc'] = metrics.matthews_corrcoef(y_test, y_pred)
     results['roc_auc'] = metrics.roc_auc_score(y_test, y_proba[:,1], average='micro')
     results['TP'] = confusion_matrix(y_test, y_pred)[0][0]
     results['TN'] = confusion_matrix(y_test, y_pred)[1][1]
     results['train_time'] = train_time
     results['predict_time'] = predict_time
+
+    return results
+
+def cross_classifier(model, X1_train, y1_train, X1_test, y1_test,
+                            X2_train, y2_train, X2_test, y2_test,
+                            X3_train, y3_train, X3_test, y3_test):
+    
+    results = {}
+    clf1 = model.fit(X1_train, y1_train)
+    y1_pred = clf1.predict(X1_train)
+    y1_pred = clf1.predict(X1_test)
+    y1_proba = clf1.predict_proba(X1_test)
+
+    clf2 = model.fit(X2_train, y2_train)
+    y2_pred = clf2.predict(X2_train)
+    y2_pred = clf2.predict(X2_test)
+    y2_proba = clf2.predict_proba(X2_test)
+
+    clf3 = model.fit(X3_train, y3_train)
+    y3_pred = clf3.predict(X3_train)
+    y3_pred = clf3.predict(X3_test)
+    y3_proba = clf3.predict_proba(X3_test)
+
+    y_pred = np.empty(y1_pred.shape)
+    y_proba = np.empty(y1_proba.shape)
+
+    for i in range(y1_proba.shape[0]):
+        if( (abs(y1_proba[i][0]-y1_proba[i][1]) >= abs(y2_proba[i][0]-y2_proba[i][1])) and (abs(y1_proba[i][0]-y1_proba[i][1]) >= abs(y3_proba[i][0]-y3_proba[i][1])) ):
+            y_proba[i] = y1_proba[i]
+            y_pred = y1_pred
+        if( (abs(y2_proba[i][0]-y2_proba[i][1]) >= abs(y1_proba[i][0]-y1_proba[i][1])) and (abs(y2_proba[i][0]-y2_proba[i][1]) >= abs(y3_proba[i][0]-y3_proba[i][1])) ):
+            y_proba[i] = y2_proba[i]
+            y_pred = y2_pred
+        if( (abs(y3_proba[i][0]-y3_proba[i][1]) >= abs(y2_proba[i][0]-y2_proba[i][1])) and (abs(y3_proba[i][0]-y3_proba[i][1]) >= abs(y1_proba[i][0]-y1_proba[i][1])) ):
+            y_proba[i] = y3_proba[i]
+            y_pred = y3_pred
+
+    np.savetxt("y_pred.csv", y_pred, delimiter=",")
+    
+    #results['bal_acc_train'] = metrics.balanced_accuracy_score(y1_train, y_pred)
+    results['bal_acc_test'] = metrics.balanced_accuracy_score(y1_test, y_pred)
+    results['f1_weighted'] = metrics.f1_score(y1_test, y_pred, average='weighted')
+    results['f1_micro'] = metrics.f1_score(y1_test, y_pred, average='micro')
+    results['precision'] = metrics.precision_score(y1_test, y_pred)
+    results['recall'] = metrics.recall_score(y1_test, y_pred)
+    
+    np.savetxt("y_proba.csv", y_proba, delimiter=",")
+    np.savetxt("y_test.csv", y1_test, delimiter=",")
+    results['mcc'] = metrics.matthews_corrcoef(y1_test, y_pred)
+    results['roc_auc'] = metrics.roc_auc_score(y1_test, y_proba[:,1], average='micro')
+    results['TP'] = confusion_matrix(y1_test, y_pred)[0][0]
+    results['TN'] = confusion_matrix(y1_test, y_pred)[1][1]
+    #results['train_time'] = train_time
+    #results['predict_time'] = predict_time
 
     return results
 
